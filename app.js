@@ -11,7 +11,7 @@ app.use(express.static('public'));
 
 // Set up a simple route for testing
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/index.html');
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 let totalClients = 0;
@@ -50,5 +50,5 @@ io.on('connection', (socket) => {
 
 // Start the server
 server.listen(3000, () => {
-  console.log('Server running on http://localhost:8080');
+  console.log('Server running on http://localhost:3000');
 });
