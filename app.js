@@ -1,73 +1,54 @@
-const socket = io();
-const chatEl = document.getElementById("chat");
-const typingEl = document.getElementById("typing");
-const inputEl = document.getElementById("message");
-const sendBtn = document.getElementById("send");
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
 
-const meAvatarEl = document.getElementById("meAvatar");
-const headerNameEl = document.getElementById("headerName");
-const statusEl = document.getElementById("status");
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
 
-const username = prompt("Enter your name:") || "Anonymous";
-const avatarUrl = `https://api.dicebear.com/8.x/adventurer/svg?seed=${encodeURIComponent(username)}`;
+// Serve static files (optional, if you have frontend files like HTML, CSS, etc.)
+app.use(express.static('public'));
 
-// set header with entered name + avatar
-headerNameEl.textContent = username;
-meAvatarEl.src = avatarUrl;
-statusEl.textContent = "online";
-
-function addMessage(user, text, avatar, who) {
-  const row = document.createElement("div");
-  row.classList.add("msg-row", who);
-
-  // avatar
-  const av = document.createElement("div");
-  av.classList.add("avatar");
-  const img = document.createElement("img");
-  img.src = avatar;
-  av.appendChild(img);
-
-  // bubble
-  const bubble = document.createElement("div");
-  bubble.classList.add("bubble");
-  const uname = document.createElement("span");
-  uname.classList.add("username");
-  uname.textContent = user;
-  bubble.appendChild(uname);
-  bubble.appendChild(document.createTextNode(text));
-
-  if (who === "me") {
-    row.appendChild(bubble);
-    row.appendChild(av);
-  } else {
-    row.appendChild(av);
-    row.appendChild(bubble);
-  }
-
-  chatEl.appendChild(row);
-  chatEl.scrollTop = chatEl.scrollHeight;
-}
-
-function send() {
-  const msg = inputEl.value.trim();
-  if (!msg) return;
-  socket.emit("message", { user: username, text: msg, avatar: avatarUrl });
-  addMessage(username, msg, avatarUrl, "me");
-  inputEl.value = "";
-}
-sendBtn.addEventListener("click", send);
-inputEl.addEventListener("keypress", (e)=>{ if(e.key==="Enter") send(); });
-
-socket.on("chat-message", (data) => {
-  if (data.user === username) return;
-  addMessage(data.user, data.text, data.avatar, "other");
+// Set up a simple route for testing
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
 });
 
-inputEl.addEventListener("input", ()=>{
-  socket.emit("feedback", `${username} is typing…`);
+let totalClients = 0;
+
+// Handle socket connections
+io.on('connection', (socket) => {
+  totalClients++;
+  io.emit('clients-total', totalClients);  // Broadcast total clients to all clients
+  console.log('A user connected');
+
+  // When a message is received from the client, send it to all other clients except the sender
+  socket.on('message', (data) => {
+    // Send the message to all clients except the sender
+    socket.broadcast.emit('chat-message', data);
+    // Also send the message to the sender
+    socket.emit('chat-message', data);
+  });
+
+  // When a user starts typing (feedback), broadcast it to others except the sender
+  socket.on('feedback', (data) => {
+    socket.broadcast.emit('feedback', data);  // Send feedback to everyone except the sender
+  });
+
+  // When a user starts typing (first feedback), broadcast it to others except the sender
+  socket.on('fffeedback', (data) => {
+    socket.broadcast.emit('feedback', data);  // Send feedback to everyone except the sender
+  });
+
+  // Handle disconnections
+  socket.on('disconnect', () => {
+    totalClients--;
+    io.emit('clients-total', totalClients);  // Update total clients when someone disconnects
+    console.log('A user disconnected');
+  });
 });
-socket.on("feedback", (data)=>{
-  typingEl.textContent = data;
-  clearTimeout(window._t);
-  window._t = setTimeout(()=> typingEl.textContent = "", 1200);
+
+// Start the server
+server.listen(3000, () => {
+  console.log('Server running on http://localhost:3000');
 });
