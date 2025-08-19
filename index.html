@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chat App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="chat">
+    <div class="header">
+      <div class="avatar"><img id="meAvatar" alt="profile" /></div>
+      <div class="title">
+        <span class="name" id="headerName">Chat App</span>
+        <span class="status" id="status">online</span>
+      </div>
+    </div>
+
+    <div id="chat"></div>
+    <div class="typing" id="typing"></div>
+
+    <div class="composer">
+      <input id="message" class="input" type="text" placeholder="Message…" />
+      <button id="send" class="btn">➡️</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const chatEl = document.getElementById("chat");
+    const typingEl = document.getElementById("typing");
+    const inputEl = document.getElementById("message");
+    const sendBtn = document.getElementById("send");
+
+    const meAvatarEl = document.getElementById("meAvatar");
+    const headerNameEl = document.getElementById("headerName");
+    const statusEl = document.getElementById("status");
+
+    const username = prompt("Enter your name:") || "Anonymous";
+    const avatarUrl = `https://api.dicebear.com/8.x/adventurer/svg?seed=${encodeURIComponent(username)}`;
+
+    // set header with entered name + avatar
+    headerNameEl.textContent = username;
+    meAvatarEl.src = avatarUrl;
+    statusEl.textContent = "online";
+
+    function addMessage(user, text, avatar, who) {
+      const row = document.createElement("div");
+      row.classList.add("msg-row", who);
+
+      // avatar
+      const av = document.createElement("div");
+      av.classList.add("avatar");
+      const img = document.createElement("img");
+      img.src = avatar;
+      av.appendChild(img);
+
+      // bubble
+      const bubble = document.createElement("div");
+      bubble.classList.add("bubble");
+      const uname = document.createElement("span");
+      uname.classList.add("username");
+      uname.textContent = user;
+      bubble.appendChild(uname);
+      bubble.appendChild(document.createTextNode(text));
+
+      if (who === "me") {
+        row.appendChild(bubble);
+        row.appendChild(av);
+      } else {
+        row.appendChild(av);
+        row.appendChild(bubble);
+      }
+
+      chatEl.appendChild(row);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function send() {
+      const msg = inputEl.value.trim();
+      if (!msg) return;
+      socket.emit("message", { user: username, text: msg, avatar: avatarUrl });
+      addMessage(username, msg, avatarUrl, "me");
+      inputEl.value = "";
+    }
+    sendBtn.addEventListener("click", send);
+    inputEl.addEventListener("keypress", (e)=>{ if(e.key==="Enter") send(); });
+
+    socket.on("chat-message", (data) => {
+      if (data.user === username) return;
+      addMessage(data.user, data.text, data.avatar, "other");
+    });
+
+    inputEl.addEventListener("input", ()=>{
+      socket.emit("feedback", `${username} is typing…`);
+    });
+    socket.on("feedback", (data)=>{
+      typingEl.textContent = data;
+      clearTimeout(window._t);
+      window._t = setTimeout(()=> typingEl.textContent = "", 1200);
+    });
+  </script>
+</body>
+</html>
